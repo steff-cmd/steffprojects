@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FORZA AI · De un equipo a una red</title>
+<style>
+:root{--bg:#f6f4ef;--fg:#1d1d1f;--mut:#6b6b70;--line:#d9d6cd;--c1:#2f6fed;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a0c11;--fg:#f2f2f4;--mut:#9a9aa2;--line:#2a2d36;--c1:#6b9bff}}
+:root[data-theme="dark"]{--bg:#0a0c11;--fg:#f2f2f4;--mut:#9a9aa2;--line:#2a2d36;--c1:#6b9bff}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:18px 14px 30px}
+h1{font-size:25px;margin:0;letter-spacing:-.5px}
+.sub{color:var(--mut);font-size:14px;margin:2px 0 12px}
+canvas{display:block;width:100%;aspect-ratio:800/680;border-radius:16px;background:#0d1017}
+.cap{min-height:66px;margin-top:12px}
+.ct{font-size:19px;font-weight:700;letter-spacing:-.2px}
+.cs{color:var(--mut);font-size:14px;margin-top:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.chip{font:inherit;font-size:12px;border:1px solid var(--line);background:transparent;color:var(--mut);border-radius:999px;padding:5px 11px;cursor:pointer}
+.chip.on{color:var(--bg);background:var(--fg);border-color:var(--fg)}
+.ctl{display:flex;gap:10px;align-items:center}
+.ctl input{flex:1;accent-color:var(--c1)}
+.ctl button{font:inherit;font-size:13px;background:var(--fg);color:var(--bg);border:0;border-radius:999px;padding:7px 14px;cursor:pointer}
+.note{color:var(--mut);font-size:12px;margin:10px 0 0;line-height:1.45}
+</style>
+</head>
+<body>
+<main>
+<h1>FORZA AI · de un equipo a una red</h1>
+<p class="sub">La potencia de IA que FORZA adquiere con cada ciclo, de un equipo a una red de soluciones constantes.</p>
+<canvas id="cv" role="img" aria-label="Animación: un equipo semilla enseña a cinco equipos, estos a diez y luego a veinte; nacen soluciones constantes y las horas acumuladas y potenciales crecen"></canvas>
+<div class="cap"><div class="ct" id="ct"></div><div class="cs" id="cs"></div></div>
+<div class="chips" id="chips"></div>
+<div class="ctl"><button id="pl">Pausar</button><input id="sc" type="range" min="0" max="48" step="0.05" value="0" aria-label="Línea de tiempo"><button id="rs">Reiniciar</button></div>
+<p class="note">Ilustrativo: 1 equipo semilla → 6 → 16 → 36 equipos, y 3, 4 y 6 soluciones constantes por ciclo. Hoy la propuesta topa en 3 por ciclo: crecer más depende de que las áreas co-lideren. Potencia IA = equipos que saben + equipos que enseñan + soluciones que producen (conteo simple, sin pesos). Horas: supuesto de 20 h/mes por solución constante; los casos que no pasan se guardan para otro ciclo y solo suman horas si luego se convierten en soluciones.</p>
+</main>
+<script>
+(function(){
+var W=800,H=680,CX=400,CY=245,TAU=Math.PI*2,T=48;
+var K={bg:[13,16,23],m:[123,129,148],c1:[91,140,255],c2:[255,176,46],c3:[63,208,154],c4:[255,111,174],fg:[243,244,248]};
+var STC=[K.c1,K.c2,K.c3,K.c4],STN=["LEARN","DISCOVER","BUILD","SCALE"];
+var CAP=[["Todo empieza con un equipo.","El equipo semilla de Tecnología aprende y prueba primero, antes de abrirlo al resto de FORZA."],
+["Fase 1 · LEARN: aprenden.","Ciclo 1. El equipo semilla enseña a cinco equipos de áreas distintas a trabajar con IA."],
+["Fase 2 · DISCOVER: encuentran casos.","Cada equipo busca en su trabajo tareas que valga la pena mejorar. Cada caso es un punto ámbar."],
+["Fase 3 · BUILD: construyen prototipos.","Los casos más claros se convierten en un prototipo para probar (cuadrado verde)."],
+["Fase 4 · SCALE: nacen soluciones constantes.","Los que funcionan pasan a operar (círculo rosa) y siguen ahorrando horas. Los demás quedan guardados para otro ciclo."],
+["Ciclo 2 · LEARN: los equipos enseñan a otros.","Los cinco primeros ahora facilitan. Nacen diez equipos nuevos y el equipo semilla deja de ser el único que enseña."],
+["Fase 2 · DISCOVER: los equipos se conectan.","Empiezan a compartir casos entre sí. Ahí nace la red."],
+["Fase 3 · BUILD: más equipos construyendo.","Cada equipo nuevo recibe apoyo de uno que ya recorrió el ciclo."],
+["Fase 4 · SCALE: las soluciones se suman.","Los del ciclo 1 siguen operando y entran cuatro nuevos."],
+["Ciclo 3 · LEARN: de equipos a una red.","Veinte equipos nuevos aprenden de equipos que ya enseñan."],
+["Fase 2 · DISCOVER: el conocimiento circula.","Casi todas las conexiones ya son entre equipos, sin pasar por Tecnología."],
+["Fase 3 · BUILD: las áreas son dueñas.","Cada área co-lidera sus casos y sus prototipos."],
+["Fase 4 · SCALE: la potencia se multiplica.","Cada ciclo suma equipos que saben, equipos que enseñan y soluciones que producen."],
+["FORZA enseña a FORZA.","Las cuatro fases se repiten sin depender de un solo equipo."]];
+var cv=document.getElementById("cv"),ctx=cv.getContext("2d"),ct=document.getElementById("ct"),cs_=document.getElementById("cs"),sc=document.getElementById("sc"),pl=document.getElementById("pl");
+function cl(x,a,b){return Math.max(a,Math.min(b,x))}
+function seg(t,a,b){return cl((t-a)/(b-a),0,1)}
+function ease(x){return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2}
+function lerp(a,b,k){return a+(b-a)*k}
+function lp(p,q,k){return [lerp(p[0],q[0],k),lerp(p[1],q[1],k)]}
+function rgb(c,a){return "rgba("+(c[0]|0)+","+(c[1]|0)+","+(c[2]|0)+","+(a==null?1:a)+")"}
+function mc(a,b,k){return [lerp(a[0],b[0],k),lerp(a[1],b[1],k),lerp(a[2],b[2],k)]}
+function cs(c){return 4+12*c}
+var TM=[{x:CX,y:CY,par:-1,sp:0,c:-1}],i,a;
+for(i=0;i<5;i++){a=i/5*TAU-Math.PI/2;TM.push({x:CX+120*Math.cos(a),y:CY+78*Math.sin(a),par:0,sp:cs(0)+.2*i,c:0})}
+for(i=0;i<10;i++){a=(i-.5)/10*TAU-Math.PI/2;TM.push({x:CX+215*Math.cos(a),y:CY+130*Math.sin(a),par:1+(i>>1),sp:cs(1)+.12*i,c:1})}
+for(i=0;i<20;i++){a=(i-1.5)/20*TAU-Math.PI/2;TM.push({x:CX+300*Math.cos(a),y:CY+170*Math.sin(a),par:6+(i>>1),sp:cs(2)+.07*i,c:2})}
+var PR=[[1,3,5],[7,9,11,13],[16,19,22,25,28,31]];
+function idxP(k){return PR[TM[k].c].indexOf(k)}
+function td(k){var c=TM[k].c,x=idxP(k);return x>=0?cs(c)+9.4+x*.3:cs(c)+9.8}
+function arr(k){return td(k)+.6}
+function tb(k){return cs(TM[k].c)+10.4}
+var LK=[];
+for(i=1;i<TM.length;i++)LK.push({a:TM[i].par,b:i,t0:TM[i].sp+1,p:1});
+for(i=0;i<5;i++)LK.push({a:1+i,b:1+(i+1)%5,t0:20,p:0});
+for(i=0;i<10;i++)LK.push({a:6+i,b:6+(i+1)%10,t0:32,p:0});
+for(i=0;i<20;i++)LK.push({a:16+i,b:16+(i+1)%20,t0:41,p:0});
+function npos(k,t){var q=TM[k];if(!k)return [q.x,q.y];var p=TM[q.par];return lp([p.x,p.y],[q.x,q.y],ease(seg(t,q.sp,q.sp+1)))}
+function hrs(t){var h=0;for(var c=0;c<3;c++)PR[c].forEach(function(k){h+=Math.max(0,t-arr(k))});return h}
+function npF(t){var n=0;for(var c=0;c<3;c++)PR[c].forEach(function(k){if(t>=arr(k))n++});return n}
+function bkF(t){var n=0;for(var k=1;k<TM.length;k++)if(idxP(k)<0&&t>=tb(k))n++;return n}
+function sabF(t){var n=1;for(var k=1;k<TM.length;k++)n+=ease(seg(t,TM[k].sp+1,TM[k].sp+2.6));return n}
+function ensF(t){var n=0;for(var k=0;k<TM.length;k++)n+=fv(k,t);return n}
+function pryF(t){var n=0;for(var c=0;c<3;c++)PR[c].forEach(function(k){n+=ease(seg(t,td(k),td(k)+.6))});return n}
+var PM=sabF(T)+ensF(T)+pryF(T);
+function fv(k,t){var c=TM[k].c;if(k===0)return seg(t,3.5,4.5);if(c===0)return ease(seg(t,cs(1),cs(1)+1));if(c===1)return ease(seg(t,cs(2),cs(2)+1));return seg(t,40,41)}
+function txt(s,x,y,size,col,al,align){if(al<=.01)return;ctx.font="700 "+size+"px system-ui,-apple-system,sans-serif";ctx.textAlign=align||"center";ctx.fillStyle=rgb(col,al);ctx.fillText(s,x,y)}
+function rr(x,y,w,h,r){ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);else ctx.rect(x,y,w,h)}
+function glow(col,b,f){ctx.shadowColor=rgb(col,.9);ctx.shadowBlur=b*f}
+function shape(x,y,r,cr,col,al,rot,f){ctx.save();ctx.translate(x,y);ctx.rotate(rot||0);glow(col,12,f);ctx.fillStyle=rgb(col,al);rr(-r,-r,2*r,2*r,cr);ctx.fill();ctx.restore()}
+function dot(x,y,r,col,al){ctx.fillStyle=rgb(col,al);ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill()}
+function items(k,t,f){
+ var q=TM[k],c=q.c,s=cs(c);if(t<q.sp+1)return;
+ var s0=s+3+(k%5)*.15,u=ease(seg(t,s0,s0+1.1));if(u<=0)return;
+ var x=q.x,y=q.y,ix=idxP(k),t0=td(k);
+ var pp=lp([x,y],[x+17,y-15],u);pp[1]-=Math.sin(Math.PI*u)*10;
+ pp=lp(pp,[x+17,y+15],ease(seg(t,s+6.2,s+7)));
+ var g2=ease(seg(t,s+6.2,s+8)),size=lerp(3,7,g2),cr=lerp(3,2,g2),col=mc(K.c2,K.c3,g2),al=1,d=ease(seg(t,t0,t0+.6));
+ if(ix>=0){var ang=t*1.4+k;pp=lp(pp,[x+25*Math.cos(ang),y+19*Math.sin(ang)],d);size=lerp(size,3.8,d);cr=size;col=mc(col,K.c4,d)}
+ else{pp=lp(pp,[x-17,y+17],d);size=lerp(size,3,d);cr=size;col=mc(col,K.c2,d);al=lerp(1,.65+.25*Math.sin(t*2+k),d)}
+ shape(pp[0],pp[1],size,cr,col,al,g2*(1-d)*Math.sin(t*2+k)*.3,f);
+ if(ix>=0&&t>=t0+.6){var tk=seg(t,t0+.6,t0+1.2);for(var z=0;z<2;z++){var ph=(t*.7+k*.21+z*.5)%1;dot(pp[0],pp[1]-5-ph*24,2,K.c4,(1-ph)*.9*tk)}
+  var ru=(t-t0)/.9;if(ru>0&&ru<1){ctx.strokeStyle=rgb(K.c4,(1-ru)*.7);ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,12+ru*26,0,TAU);ctx.stroke()}}
+}
+function node(k,t,f,cI){
+ var q=TM[k];if(k&&t<q.sp)return;
+ var p=npos(k,t),x=p[0],y=p[1],r=k?12:20,u=k?ease(seg(t,q.sp,q.sp+1)):1,lk=k?ease(seg(t,q.sp+1,q.sp+2.6)):1,col=mc(K.m,K.c1,lk),R=r*lerp(.3,1,u);
+ if(k&&t>=q.sp+1&&t<cs(q.c)+3.2){var ph=(t*.9+k*.13)%1;ctx.strokeStyle=rgb(K.c1,(1-ph)*.5);ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x,y,R+ph*14,0,TAU);ctx.stroke();
+  var sr=4+2*Math.sin(t*6+k),sy=y-R-9;ctx.fillStyle=rgb(K.c1,.9);ctx.beginPath();ctx.moveTo(x,sy-sr);ctx.lineTo(x+sr*.4,sy);ctx.lineTo(x,sy+sr);ctx.lineTo(x-sr*.4,sy);ctx.closePath();ctx.fill()}
+ ctx.save();if(lk>0)glow(col,10,f);ctx.strokeStyle=rgb(col,lerp(.45,.95,lk));ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,R,0,TAU);ctx.stroke();ctx.restore();
+ var n=k?3:4,rd=k?4.8:7;for(var j=0;j<n;j++){var an=j/n*TAU+(k?-Math.PI/2:Math.PI/4);dot(x+rd*Math.cos(an)*u,y+rd*Math.sin(an)*u,k?2.8:3.6,col,lerp(.5,.95,lk))}
+ var fa=fv(k,t);if(fa>0){ctx.strokeStyle=rgb(K.c3,fa*.9);ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,R+5,0,TAU);ctx.stroke()}
+}
+var PN=["1 Aprenden","2 Casos","3 Prototipos","4 Soluciones"];
+function pico(i,x,y,col,al){
+ ctx.fillStyle=rgb(col,al);ctx.strokeStyle=rgb(col,al);ctx.lineWidth=2;
+ if(i===0){ctx.beginPath();ctx.moveTo(x,y-7);ctx.lineTo(x+3,y);ctx.lineTo(x,y+7);ctx.lineTo(x-3,y);ctx.closePath();ctx.fill()}
+ else if(i===1){ctx.beginPath();ctx.arc(x,y,5,0,TAU);ctx.fill()}
+ else if(i===2){ctx.fillRect(x-5,y-5,10,10)}
+ else{ctx.beginPath();ctx.arc(x,y,3.5,0,TAU);ctx.fill();ctx.beginPath();ctx.arc(x,y,8,0,TAU);ctx.stroke()}}
+function strip(t,cI,st,fin,f){
+ var prog=st>=0?(t-cs(cI)-3*st)/3:0;
+ for(var i=0;i<4;i++){
+  var x=24+i*180,on=!fin&&st===i,done=!fin&&st>i,col=STC[i];
+  rr(x,14,170,36,18);ctx.fillStyle=rgb(K.fg,.07);ctx.fill();
+  if(on||done||fin){rr(x,14,170,36,18);ctx.fillStyle=rgb(col,fin?.35:.25);ctx.fill()}
+  if(on){ctx.save();rr(x,14,170,36,18);ctx.clip();ctx.fillStyle=rgb(col,.6);ctx.fillRect(x,14,170*cl(prog,0,1),36);ctx.restore()}
+  pico(i,x+19,32,col,on||done||fin?1:.8);
+  txt(PN[i],x+36,38,17,K.fg,on||done||fin?1:.6,"left");
+ }
+ txt("↺",762,43,28,K.fg,fin?1:(st===3?.35+.65*cl(prog,0,1):.35),"center");
+ if(t<4)txt("Un equipo",24,84,18,K.m,.95,"left");
+ else if(fin)txt("↺ vuelve a empezar",24,84,18,K.c3,.95,"left");
+ else txt("Ciclo "+(cI+1),24,84,18,K.m,.95,"left");
+}
+function draw(t){
+ var f=cv.width/W,k,c;ctx.setTransform(f,0,0,f,0,0);ctx.shadowBlur=0;ctx.setLineDash([]);
+ ctx.fillStyle=rgb(K.bg);ctx.fillRect(0,0,W,H);
+ var fin=t>=40,cI=t<4?-1:Math.min(2,Math.floor((t-4)/12)),st=(cI>=0&&!fin)?Math.floor((t-cs(cI))/3):-1;
+ var scol=st>=0?STC[st]:K.c3,nt=1,np=npF(t),bk=bkF(t);
+ for(k=1;k<TM.length;k++)if(t>=TM[k].sp+.5)nt++;
+ var g=ctx.createRadialGradient(CX,CY,0,CX,CY,150+230*nt/36);g.addColorStop(0,rgb(scol,.14));g.addColorStop(1,rgb(scol,0));ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ var tot=0,non=0;
+ LK.forEach(function(L,n){
+  if(t<L.t0-1)return;var p1=npos(L.a,t),p2=npos(L.b,t),q=TM[L.b];
+  if(t>=L.t0){tot++;if(L.a!==0&&L.b!==0)non++}
+  if(L.p){var w=seg(t,q.sp,q.sp+.6)*(1-seg(t,cs(q.c)+3,cs(q.c)+3.6));
+   ctx.strokeStyle=rgb(K.c1,.22*ease(seg(t,q.sp+1,q.sp+2)));ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(p1[0],p1[1]);ctx.lineTo(p2[0],p2[1]);ctx.stroke();
+   if(w>0){ctx.setLineDash([5,5]);ctx.lineDashOffset=-t*18;ctx.strokeStyle=rgb(K.c3,.75*w);ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(p1[0],p1[1]);ctx.lineTo(p2[0],p2[1]);ctx.stroke();ctx.setLineDash([])}}
+  else{var la=ease(seg(t,L.t0,L.t0+1.5));ctx.strokeStyle=rgb(K.c1,.38*la);ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(p1[0],p1[1]);ctx.lineTo(p2[0],p2[1]);ctx.stroke()}
+  if(fin&&n%3===0){var ph=(t*.45+n*.37)%1;dot(lerp(p1[0],p2[0],ph),lerp(p1[1],p2[1],ph),2.5,K.c1,.9*seg(t,40,41))}
+ });
+ for(k=1;k<TM.length;k++)items(k,t,f);
+ for(k=0;k<TM.length;k++)node(k,t,f,cI);
+ txt("EQUIPO SEMILLA",CX,CY+46,18,K.fg,.85*(1-seg(t,3.6,4.6)),"center");
+ strip(t,cI,st,fin,f);
+ if(t>=1){var sa=seg(t,1,2);txt("equipos "+nt,24,462,20,K.c1,sa,"left");txt("soluciones constantes "+np,776,462,20,K.c4,sa,"right")}
+ var x0=70,x1=745,y0=650,ch=110;
+ function X(u){return x0+(u-4)/(T-4)*(x1-x0)}function Y(v){return y0-ch*v/PM}
+ ctx.strokeStyle=rgb(K.fg,.22);ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y0);ctx.stroke();
+ ctx.setLineDash([4,6]);ctx.strokeStyle=rgb(K.fg,.15);for(c=1;c<3;c++){ctx.beginPath();ctx.moveTo(X(cs(c)),y0-ch-6);ctx.lineTo(X(cs(c)),y0);ctx.stroke()}ctx.setLineDash([]);
+ for(c=0;c<3;c++)txt("Ciclo "+(c+1),X(cs(c)+6),673,16,K.fg,cI===c?.95:.45);
+ txt("POTENCIA IA ADQUIRIDA",70,492,18,K.fg,.95,"left");
+ txt("≈ "+Math.round(hrs(t)*5)+" h ahorradas",776,492,15,K.m,.95,"right");
+ [["SABEN",K.c1,70],["ENSEÑAN",K.c3,170],["PRODUCEN",K.c4,290]].forEach(function(l){ctx.fillStyle=rgb(l[1],.8);ctx.fillRect(l[2],507,12,12);txt(l[0],l[2]+18,518,15,l[1],.95,"left")});
+ if(t>4){var us=[];for(var u5=4;u5<t;u5+=.5)us.push(u5);us.push(t);
+  var L1=[],L2=[],L3=[];us.forEach(function(u){var s1=sabF(u),e1=ensF(u),p1=pryF(u);L1.push(s1);L2.push(s1+e1);L3.push(s1+e1+p1)});
+  [[null,L1,K.c1],[L1,L2,K.c3],[L2,L3,K.c4]].forEach(function(ly){ctx.beginPath();
+   us.forEach(function(u,n){if(n)ctx.lineTo(X(u),Y(ly[1][n]));else ctx.moveTo(X(u),Y(ly[1][n]))});
+   for(var m=us.length-1;m>=0;m--)ctx.lineTo(X(us[m]),ly[0]?Y(ly[0][m]):y0);
+   ctx.closePath();ctx.fillStyle=rgb(ly[2],.5);ctx.fill()});
+  ctx.beginPath();us.forEach(function(u,n){if(n)ctx.lineTo(X(u),Y(L3[n]));else ctx.moveTo(X(u),Y(L3[n]))});
+  ctx.save();glow(K.fg,8,f);ctx.strokeStyle=rgb(K.fg,.9);ctx.lineWidth=2.5;ctx.stroke();ctx.restore();
+  ctx.save();glow(K.fg,12,f);dot(X(t),Y(L3[L3.length-1]),5,K.fg,1);ctx.restore()}
+ var ga=seg(t,0,.7)*(1-seg(t,T-.7,T));if(ga<1){ctx.fillStyle=rgb(K.bg,1-ga);ctx.fillRect(0,0,W,H)}
+}
+function phase(t){return t<4?0:t>=40?13:1+Math.floor((t-4)/3)}
+var chips=document.getElementById("chips"),cb=[],SEEK=[0,4,16,28,40];
+["Un equipo","Ciclo 1","Ciclo 2","Ciclo 3","Red"].forEach(function(n,j){var b=document.createElement("button");b.className="chip";b.textContent=n;b.onclick=function(){t=SEEK[j]+.01;draw(t)};chips.appendChild(b);cb.push(b)});
+var cur=-1;
+function cap(p){if(p===cur)return;cur=p;ct.textContent=CAP[p][0];cs_.textContent=CAP[p][1];
+ var m=p===0?0:p===13?4:p<=4?1:p<=8?2:3;cb.forEach(function(b,j){b.classList.toggle("on",j===m)})}
+function fit(){var r=cv.getBoundingClientRect(),d=Math.min(window.devicePixelRatio||1,2);cv.width=Math.round(r.width*d);cv.height=Math.round(r.width*d*H/W)}
+var t=0,last=null,run=!matchMedia("(prefers-reduced-motion: reduce)").matches;
+if(!run)t=45;
+pl.textContent=run?"Pausar":"Reproducir";
+pl.onclick=function(){run=!run;pl.textContent=run?"Pausar":"Reproducir"};
+document.getElementById("rs").onclick=function(){t=0;run=true;pl.textContent="Pausar"};
+sc.oninput=function(){t=+sc.value;draw(t)};
+window.addEventListener("resize",function(){fit();draw(t)});
+function tick(ts){if(last==null)last=ts;var dt=Math.min(.05,(ts-last)/1000);last=ts;
+ if(run){t+=dt;if(t>=T)t-=T}
+ draw(t);cap(phase(t));sc.value=t;requestAnimationFrame(tick)}
+fit();requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
